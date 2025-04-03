@@ -5,7 +5,7 @@ import torch
 import utils.misc as utils
 import torch.nn.functional as F
 from datetime import datetime
-
+import numpy as np
 
 def train_one_epoch(
     model,
@@ -140,13 +140,26 @@ def evaluate(model, dataloader, device, cfg, args, save_image=False):
     psnr_list = []
     msssim_list = []
 
+    inf_time = []
     for i, data in enumerate(dataloader):
         data = utils.to_cuda(data, device)
+        
         # forward pass
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+        
+        start_event.record()
         output_list = model(data)  # output is a list for the case that has multiscale
+        end_event.record()
+        
+        
         if isinstance(output_list, dict):
             output_list = output_list["output_list"]  # ignore the loss in eval
+
         torch.cuda.synchronize()
+
+        inf_time.append(start_event.elapsed_time(end_event) / 1000)
+
         target_list = [
             F.adaptive_avg_pool2d(data["img_gt"], x.shape[-2:]) for x in output_list
         ]
@@ -194,5 +207,6 @@ def evaluate(model, dataloader, device, cfg, args, save_image=False):
             (val_end_time - val_start_time).total_seconds()
         )
     )
+    print(f"inference time: {sum(inf_time) / len(inf_time):.4f}s")
 
     return val_stats

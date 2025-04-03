@@ -26,7 +26,7 @@ class CustomDataSet(Dataset):
         for i in range(len(frame_idx)):
             x = frame_idx[i]
             self.frame_idx.append(float(x) / (len(frame_idx) - 1))
-        self.accum_img_num = np.asfarray(accum_img_num)
+        self.accum_img_num = np.asarray(accum_img_num)
 
         self.height = 720
         self.width = 1280
