@@ -1,19 +1,19 @@
 seed: 1  # same as the original NeRV repo
-dataset_path: ./data/bunny
-dataset_type: all 
+dataset_path: /data/ysj/teacher_output/Exp_knights_8_256/
+dataset_type: LightFieldTeacherDataSet
 model:
   model_name: E_NeRV
   # pe related
   pos_b: 1.25
-  pos_l: 80
+  pos_l: 16
   xypos_b: 1.25
-  xypos_l: 80
+  xypos_l: 16
   pos_b_tm: 1.25
-  pos_l_tm: 80
+  pos_l_tm: 16
   stem_dim_num: '512'
-  fc_hw_dim: '9_16_196'
+  fc_hw_dim: '2_2_196'
   act: gelu
-  stride_list: [5, 2, 2, 2, 2]
+  stride_list: [4, 4, 4, 2, 2]
   expansion: 3
   reduction: 2
   lower_width: 96
@@ -31,7 +31,7 @@ model:
 train_batchsize: 1
 val_batchsize: 1
 workers: 4
-epoch: 1000
+epoch: 600
 optim:
   optim_type: Adam
   lr: 0.0005
@@ -42,4 +42,4 @@ optim:
 
 loss: Fusion6
 print_freq: 200 # every 50 steps in each epoch to print
-eval_freq: 1  # every 50 epochs to conduct evaluation
+eval_freq: 50  # every 50 epochs to conduct evaluation

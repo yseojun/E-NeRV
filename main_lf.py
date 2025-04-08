@@ -12,7 +12,7 @@ import torchvision.transforms as transforms
 import torch.optim as optim
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, dataloader
 from torch.utils.data.distributed import DistributedSampler
-from engine import train_one_epoch, evaluate
+from engine_lf import train_one_epoch, evaluate
 from torch.utils.tensorboard import SummaryWriter
 import utils.misc as utils
 
@@ -25,7 +25,6 @@ def get_args_parse():
     parser.add_argument('--time_str', default='', type=str, help='just for tensorboard dir name')
     parser.add_argument('--device', default='cuda', help='device to use for training / testing')
     parser.add_argument('--port', default=29500, type=int, help='port number')
-    parser.add_argument('--eval_only', action='store_true', help='only evaluate model using checkpoint')
 
     return parser
 
@@ -58,7 +57,7 @@ def main(args):
         params = sum([p.data.nelement() for p in model.parameters()]) / 1e6
         print(f'{args}\n {model}\n Model Params: {params}M')
         # tensorboard writer
-        writer = SummaryWriter(os.path.join(args.output_dir, 'tensorboard_{}'.format(args.time_str))) if not args.eval_only else None
+        writer = SummaryWriter(os.path.join(args.output_dir, 'tensorboard_{}'.format(args.time_str)))
     
     img_transform = transforms.ToTensor()
     dataset_train = dataset_dict[cfg['dataset_type']](main_dir=cfg['dataset_path'], transform=img_transform, train=True)
@@ -97,35 +96,8 @@ def main(args):
         model_without_ddp = model.module
     
     output_dir = Path(args.output_dir)
-    
-    # 체크포인트 로드 로직
-    checkpoint_path = output_dir / 'checkpoint.pth'
+
     train_best_psnr, train_best_msssim, val_best_psnr, val_best_msssim = [torch.tensor(0) for _ in range(4)]
-    
-    if args.eval_only:
-        if checkpoint_path.exists():
-            if args.rank in [0, None]:
-                print(f"Loading checkpoint from {checkpoint_path}")
-            checkpoint = torch.load(checkpoint_path, map_location='cpu')
-            model_without_ddp.load_state_dict(checkpoint['model'])
-            val_best_psnr = checkpoint.get('val_best_psnr', torch.tensor(0))
-            val_best_msssim = checkpoint.get('val_best_msssim', torch.tensor(0))
-            
-            # 모델 평가 실행
-            val_stats = evaluate(
-                model, dataloader_val, device, cfg, args, save_image=True
-            )
-            
-            if args.rank in [0, None]:
-                print_str = 'Evaluation results:'
-                print_str += '\tPSNR: {:.2f}\tMSSSIM: {:.4f}'.format(
-                    val_stats['val_psnr'][-1].item(), val_stats['val_msssim'][-1].item())
-                print(print_str)
-            return
-        else:
-            if args.rank in [0, None]:
-                print(f"No checkpoint found at {checkpoint_path}, cannot evaluate model.")
-            return
 
     print('Start training')
     start_time = datetime.now()
@@ -159,7 +131,7 @@ def main(args):
         # evaluation
         if (epoch + 1) % cfg['eval_freq'] == 0 or epoch > cfg['epoch'] - 10:
             val_stats = evaluate(
-                model, dataloader_val, device, cfg, args, save_image=False  # TODO: implement the save image
+                model, dataloader_val, device, cfg, args, writer=writer, save_image=(epoch + 1) % 10 == 0  # 10에폭마다 이미지 저장
             )
             
             val_best_psnr = val_stats['val_psnr'][-1] if val_stats['val_psnr'][-1] > val_best_psnr else val_best_psnr
